@@ -10,6 +10,32 @@ class ScriptManager:
                     end
                     return kid""",
                 'fetch-feature': """
+                    -- adapted from https://github.com/antirez/redis/issues/678#issuecomment-15848571
+                    -- basically, unpack has a stack limit at 1024, so need to buffer hmget calls
+		    local function _hmget(key, t)
+			local i = 1
+			local temp = {}
+			local results = {}
+			while(i <= #t) do
+			    table.insert(temp, t[i])
+			    if #temp >= 1000 then
+				local partial_results = redis.call('HMGET', key, unpack(temp))
+				for j=1,#partial_results do
+				    results[#results+1] = partial_results[j]
+				end
+				temp = {}
+			    end
+			    i = i+1
+			end
+			if #temp > 0 then
+                            local partial_results = redis.call('HMGET', key, unpack(temp))
+                            for j=1,#partial_results do
+                                results[#results+1] = partial_results[j]
+                            end
+			end
+			return results
+		    end
+
                     local context = ARGV[1]
                     local key = ARGV[2]
                     local formedkey = context .. ':' .. 'feature' .. ':' .. key
@@ -35,13 +61,39 @@ class ScriptManager:
 
                     -- bulk remap the indices into IDs
                     local result = {}
-                    local ids = redis.call('HMGET', ii, unpack(indices))
+                    local ids = _hmget(ii, indices)
                     for i=1,#ids do
                         result[ids[i]] = values[i]
                     end
 
                     return cjson.encode(result)""",
                 'fetch-sample': """
+                    -- adapted from https://github.com/antirez/redis/issues/678#issuecomment-15848571
+                    -- basically, unpack has a stack limit at 1024, so need to buffer hmget calls
+		    local function _hmget(key, t)
+			local i = 1
+			local temp = {}
+			local results = {}
+			while(i <= #t) do
+			    table.insert(temp, t[i])
+			    if #temp >= 1000 then
+				local partial_results = redis.call('HMGET', key, unpack(temp))
+				for j=1,#partial_results do
+				    results[#results+1] = partial_results[j]
+				end
+				temp = {}
+			    end
+			    i = i+1
+			end
+			if #temp > 0 then
+                            local partial_results = redis.call('HMGET', key, unpack(temp))
+                            for j=1,#partial_results do
+                                results[#results+1] = partial_results[j]
+                            end
+			end
+			return results
+		    end
+
                     local context = ARGV[1]
                     local key = ARGV[2]
                     local result = {}
@@ -68,7 +120,7 @@ class ScriptManager:
 
                     -- bulk remap the indices into IDs
                     local result = {}
-                    local ids = redis.call('HMGET', ii, unpack(indices))
+                    local ids = _hmget(ii, indices)
                     for i=1,#ids do
                         result[ids[i]] = values[i]
                     end
