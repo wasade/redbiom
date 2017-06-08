@@ -12,7 +12,6 @@ class ScriptManager:
                 'fetch-feature': """
                     local context = ARGV[1]
                     local key = ARGV[2]
-                    local result = {}
                     local formedkey = context .. ':' .. 'feature' .. ':' .. key
 
                     local items = redis.call('ZRANGEBYSCORE',
@@ -21,15 +20,24 @@ class ScriptManager:
                                              'withscores')
 
                     -- adapted from https://gist.github.com/klovadis/5170446
-                    local resultkey
                     local ii = context .. ':' .. 'sample' .. '-index-inverted'
-                    for idx, v in ipairs(items) do
-                        if idx % 2 == 1 then
-                            -- it is likely possible to issue a HMGET
-                            resultkey = redis.call('HGET', ii, v)
+
+                    -- partition items into indices and values
+                    local indices = {}
+                    local values = {}
+                    for i=1,#items do
+                        if i % 2 == 1 then
+                            indices[#indices+1] = items[i]
                         else
-                            result[resultkey] = tonumber(v)
+                            values[#values+1] = tonumber(items[i])
                         end
+                    end
+
+                    -- bulk remap the indices into IDs
+                    local result = {}
+                    local ids = redis.call('HMGET', ii, unpack(indices))
+                    for i=1,#ids do
+                        result[ids[i]] = values[i]
                     end
 
                     return cjson.encode(result)""",
@@ -45,15 +53,24 @@ class ScriptManager:
                                              'withscores')
 
                     -- adapted from https://gist.github.com/klovadis/5170446
-                    local resultkey
                     local ii = context .. ':' .. 'feature' .. '-index-inverted'
-                    for idx, v in ipairs(items) do
-                        if idx % 2 == 1 then
-                            -- it is likely possible to issue a HMGET
-                            resultkey = redis.call('HGET', ii, v)
+
+                    -- partition items into indices and values
+                    local indices = {}
+                    local values = {}
+                    for i=1,#items do
+                        if i % 2 == 1 then
+                            indices[#indices+1] = items[i]
                         else
-                            result[resultkey] = tonumber(v)
+                            values[#values+1] = tonumber(items[i])
                         end
+                    end
+
+                    -- bulk remap the indices into IDs
+                    local result = {}
+                    local ids = redis.call('HMGET', ii, unpack(indices))
+                    for i=1,#ids do
+                        result[ids[i]] = values[i]
                     end
 
                     return cjson.encode(result)"""}
